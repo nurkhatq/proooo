@@ -30,7 +30,7 @@ module.exports = async (req, res) => {
     `;
     const result = await pool.query(query);
     
-    let csv = "ID,Product Code,Title,Brand,City (Zone),Price (KZT),Sales (RK),Date\n";
+    let csv = "\uFEFFID,Product Code,Title,Brand,City (Zone),Price (KZT),Sales (RK),Date\n";
     
     result.rows.forEach(r => {
         // Sanitize title for CSV (escape double quotes, wrap in quotes)

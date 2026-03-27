@@ -221,16 +221,17 @@ async function main() {
   }
 
   const products = {};
-  const currentZoneIds = {}; // Track what was scraped per zone
+  const currentZoneIds = {}; // Track what was scraped per zone, with stock status
 
   // 2. SCRAPE CITIES (Darkstore Check Layer)
   for (const city of CITIES) {
     console.log(`\n[${city.name}] Starting scrape...`);
     const cards = await scrapeCity(city);
-    currentZoneIds[city.name] = new Set();
+    currentZoneIds[city.name] = {}; // Map of id -> stock (true/false)
 
     for (const card of cards) {
-      currentZoneIds[city.name].add(card.id);
+      const inStock = card.stock !== undefined ? card.stock > 0 : true; // Use real stock field!
+      currentZoneIds[city.name][card.id] = inStock;
       if (!products[card.id]) {
         products[card.id] = {
           id: card.id, title: card.title, brand: card.brand || '',
@@ -239,9 +240,9 @@ async function main() {
           prices: {}
         };
       }
-      products[card.id].prices[city.name] = card.unitPrice;
+      if (inStock) products[card.id].prices[city.name] = card.unitPrice;
     }
-    await sleep(2000); 
+    await sleep(2000);
   }
 
   const resultList = Object.values(products);
@@ -305,28 +306,34 @@ async function main() {
     }
   }
 
-  // 6. DARKSTORE TRACKING LOGIC (Run after products exist to satisfy FK constraints)
+  // 6. DARKSTORE TRACKING (uses real stock field per card)
   console.log(`\n🕵️‍♂️ Running Matrix Darkstore Checks...`);
+  let outOfStockCount = 0;
   for (const city of CITIES) {
+      const currentStockMap = currentZoneIds[city.name] || {}; // id -> bool
+      const currentIds = Object.keys(currentStockMap);
       const historicalIdsForCity = dbProducts[city.name] || new Set();
-      const currentIdsForCity = currentZoneIds[city.name] || new Set();
 
-      for (const hid of historicalIdsForCity) {
-          const isAvailable = currentIdsForCity.has(hid);
+      // Log stock status for all scrapped items (using real stock field)
+      for (const [cardId, isAvailable] of Object.entries(currentStockMap)) {
           await client.query(`
             INSERT INTO darkstore_availability (product_id, city, is_available)
             VALUES ($1, $2, $3)
-          `, [hid, city.name, isAvailable]);
+          `, [cardId, city.name, isAvailable]);
+          if (!isAvailable) outOfStockCount++;
       }
-      for (const cid of currentIdsForCity) {
-          if (!historicalIdsForCity.has(cid)) {
+      // Also log items that were in DB but disappeared from search entirely
+      for (const hid of historicalIdsForCity) {
+          if (!currentStockMap.hasOwnProperty(hid)) {
               await client.query(`
                 INSERT INTO darkstore_availability (product_id, city, is_available)
                 VALUES ($1, $2, $3)
-              `, [cid, city.name, true]);
+              `, [hid, city.name, false]);
+              outOfStockCount++;
           }
       }
   }
+  console.log(`   -> Found ${outOfStockCount} out-of-stock/missing SKUs across all zones.`);
 
   console.log(`✅ Success! Updated ${resultList.length} items & ${priceRowsInserted} prices. Fired ${alertsSent} alerts.`);
   await client.end();

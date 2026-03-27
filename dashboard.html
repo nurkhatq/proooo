@@ -222,7 +222,14 @@
 <script>
 const CHART_COLORS = ['#f14635','#38bdf8','#10b981','#fbbf24','#a78bfa','#fb923c','#34d399','#f472b6','#60a5fa','#facc15'];
 let allProducts = [];
-let trendChart = null;
+const chartInstances = {}; // Track all Chart.js instances to destroy on reload
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+function destroyAllCharts() {
+  Object.keys(chartInstances).forEach(id => destroyChart(id));
+}
 
 function fmt(n) { return n ? n.toLocaleString('ru-RU') + ' ₸' : '—'; }
 
@@ -263,10 +270,11 @@ function buildKPIs(products) {
 }
 
 function buildBrandsChart(products) {
+  destroyChart('chartBrands');
   const counts = {};
   products.forEach(p => { const b = p.brand || 'Без бренда'; counts[b] = (counts[b] || 0) + 1; });
   const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 10);
-  new Chart(document.getElementById('chartBrands'), {
+  chartInstances['chartBrands'] = new Chart(document.getElementById('chartBrands'), {
     type: 'doughnut',
     data: {
       labels: sorted.map(e => e[0]),
@@ -280,10 +288,11 @@ function buildBrandsChart(products) {
 }
 
 function buildCitiesChart(products) {
+  destroyChart('chartCities');
   const counts = {};
   products.forEach(p => Object.keys(p.prices).forEach(c => counts[c] = (counts[c]||0)+1));
   const top20 = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 20);
-  new Chart(document.getElementById('chartCities'), {
+  chartInstances['chartCities'] = new Chart(document.getElementById('chartCities'), {
     type: 'bar',
     data: {
       labels: top20.map(e => e[0]),
@@ -301,6 +310,7 @@ function buildCitiesChart(products) {
 }
 
 function buildPriceDistChart(products) {
+  destroyChart('chartPriceDist');
   const buckets = [0, 500, 1000, 1500, 2000, 3000, 5000, 10000, Infinity];
   const labels = ['<500', '500-1k', '1k-1.5k', '1.5k-2k', '2k-3k', '3k-5k', '5k-10k', '>10k'];
   const counts = new Array(labels.length).fill(0);
@@ -311,7 +321,7 @@ function buildPriceDistChart(products) {
       if (min >= buckets[i] && min < buckets[i+1]) { counts[i]++; break; }
     }
   });
-  new Chart(document.getElementById('chartPriceDist'), {
+  chartInstances['chartPriceDist'] = new Chart(document.getElementById('chartPriceDist'), {
     type: 'bar',
     data: {
       labels,
@@ -329,6 +339,7 @@ function buildPriceDistChart(products) {
 }
 
 function buildCoverageChart(products) {
+  destroyChart('chartCoverage');
   const buckets = [
     { label: '1 город', min: 1, max: 1 },
     { label: '2-5', min: 2, max: 5 },
@@ -344,7 +355,7 @@ function buildCoverageChart(products) {
       if (n >= buckets[i].min && n <= buckets[i].max) { counts[i]++; break; }
     }
   });
-  new Chart(document.getElementById('chartCoverage'), {
+  chartInstances['chartCoverage'] = new Chart(document.getElementById('chartCoverage'), {
     type: 'bar',
     data: {
       labels: buckets.map(b => b.label),
@@ -397,8 +408,8 @@ function updateTrend(products, init = false) {
   const labels = entries.map(e => e.date);
   const data = entries.map(e => e.price);
 
-  if (trendChart) trendChart.destroy();
-  trendChart = new Chart(document.getElementById('chartTrend'), {
+  if (chartInstances['chartTrend']) { chartInstances['chartTrend'].destroy(); delete chartInstances['chartTrend']; }
+  chartInstances['chartTrend'] = new Chart(document.getElementById('chartTrend'), {
     type: 'line',
     data: {
       labels,
@@ -453,8 +464,10 @@ function buildTable(products) {
 }
 
 function buildSalesCharts(products) {
+  destroyChart('chartTopSales');
+  destroyChart('chartBrandSales');
   const sorted = [...products].filter(p => p.salesCount > 0).sort((a,b) => b.salesCount - a.salesCount).slice(0, 10);
-  new Chart(document.getElementById('chartTopSales'), {
+  chartInstances['chartTopSales'] = new Chart(document.getElementById('chartTopSales'), {
     type: 'bar',
     data: {
       labels: sorted.map(p => p.title.length > 25 ? p.title.substring(0,25)+'...' : p.title),
@@ -478,7 +491,7 @@ function buildSalesCharts(products) {
     }
   });
   const topBrands = Object.entries(brandSales).sort((a,b) => b[1]-a[1]).slice(0, 10);
-  new Chart(document.getElementById('chartBrandSales'), {
+  chartInstances['chartBrandSales'] = new Chart(document.getElementById('chartBrandSales'), {
     type: 'bar',
     data: {
       labels: topBrands.map(e => e[0]),
@@ -498,6 +511,7 @@ function buildSalesCharts(products) {
 function loadData(period = 'day') {
   document.getElementById('loader').style.display = 'flex';
   document.getElementById('content').style.display = 'none';
+  destroyAllCharts(); // ← Destroy all charts before reloading
 
   fetch(`/api/trends?period=${period}`)
     .then(r => r.json())
