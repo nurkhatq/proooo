@@ -188,8 +188,9 @@ function fetchOffers(sku, cityCode) {
 }
 
 async function main() {
+  const connectionString = process.env.birds_DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL;
   const client = new Client({
-    connectionString: process.env.birds_DATABASE_URL,
+    connectionString,
     ssl: { rejectUnauthorized: false }
   });
 
@@ -213,7 +214,7 @@ async function main() {
 
      const { rows: latestPrices } = await client.query('SELECT DISTINCT ON (product_id, city) product_id, city, price FROM prices_history ORDER BY product_id, city, recorded_at DESC');
      latestPrices.forEach(r => {
-        dbPrices[\`\${r.product_id}_\${r.city}\`] = r.price;
+        dbPrices[`${r.product_id}_${r.city}`] = r.price;
      });
   } catch(e) {
      console.log("⚠️ Could not fetch baseline history. Assuming empty database...");
@@ -241,30 +242,6 @@ async function main() {
       products[card.id].prices[city.name] = card.unitPrice;
     }
     await sleep(2000); 
-  }
-
-  // 3. DARKSTORE TRACKING LOGIC
-  console.log(`\n🕵️‍♂️ Running Matrix Darkstore Checks...`);
-  for (const city of CITIES) {
-      const historicalIdsForCity = dbProducts[city.name] || new Set();
-      const currentIdsForCity = currentZoneIds[city.name] || new Set();
-
-      for (const hid of historicalIdsForCity) {
-          const isAvailable = currentIdsForCity.has(hid);
-          await client.query(`
-            INSERT INTO darkstore_availability (product_id, city, is_available)
-            VALUES ($1, $2, $3)
-          `, [hid, city.name, isAvailable]);
-      }
-      // For completely new items today
-      for (const cid of currentIdsForCity) {
-          if (!historicalIdsForCity.has(cid)) {
-              await client.query(`
-                INSERT INTO darkstore_availability (product_id, city, is_available)
-                VALUES ($1, $2, $3)
-              `, [cid, city.name, true]);
-          }
-      }
   }
 
   const resultList = Object.values(products);
@@ -307,7 +284,7 @@ async function main() {
 
     for (const [cityName, price] of Object.entries(product.prices)) {
       // Alert Check
-      const oldPrice = dbPrices[\`\${product.id}_\${cityName}\`];
+      const oldPrice = dbPrices[`${product.id}_${cityName}`];
       if (oldPrice && oldPrice !== price) {
           const type = price > oldPrice ? "📈 ПОВЫСИЛАСЬ" : "📉 СНИЗИЛАСЬ";
           const alertMsg = `💰 **АЛЕРТ ЦЕНЫ: ${type}**\n\n🐔 **Товар:** ${product.title}\n🛒 **Бренд:** ${product.brand || 'Без бренда'}\n📍 **Город (Зона):** ${cityName}\n\n💵 Старая цена: ${oldPrice} ₸\n💵 Новая цена: ${price} ₸\n🔢 ID: ${product.id}`;
@@ -326,6 +303,29 @@ async function main() {
       `, [product.id, cityName, price, product.sales]);
       priceRowsInserted++;
     }
+  }
+
+  // 6. DARKSTORE TRACKING LOGIC (Run after products exist to satisfy FK constraints)
+  console.log(`\n🕵️‍♂️ Running Matrix Darkstore Checks...`);
+  for (const city of CITIES) {
+      const historicalIdsForCity = dbProducts[city.name] || new Set();
+      const currentIdsForCity = currentZoneIds[city.name] || new Set();
+
+      for (const hid of historicalIdsForCity) {
+          const isAvailable = currentIdsForCity.has(hid);
+          await client.query(`
+            INSERT INTO darkstore_availability (product_id, city, is_available)
+            VALUES ($1, $2, $3)
+          `, [hid, city.name, isAvailable]);
+      }
+      for (const cid of currentIdsForCity) {
+          if (!historicalIdsForCity.has(cid)) {
+              await client.query(`
+                INSERT INTO darkstore_availability (product_id, city, is_available)
+                VALUES ($1, $2, $3)
+              `, [cid, city.name, true]);
+          }
+      }
   }
 
   console.log(`✅ Success! Updated ${resultList.length} items & ${priceRowsInserted} prices. Fired ${alertsSent} alerts.`);

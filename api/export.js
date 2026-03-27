@@ -11,12 +11,13 @@ module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="kaspi_birds_analytics.csv"');
 
-  if (!process.env.birds_DATABASE_URL) {
+  const connectionString = process.env.birds_DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL;
+  if (!connectionString) {
     return res.status(500).send("Database URL missing");
   }
 
   const pool = new Pool({
-    connectionString: process.env.birds_DATABASE_URL,
+    connectionString,
     ssl: { rejectUnauthorized: false }
   });
 

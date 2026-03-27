@@ -7,12 +7,13 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  if (!process.env.birds_DATABASE_URL) {
+  const connectionString = process.env.birds_DATABASE_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL;
+  if (!connectionString) {
     return res.status(500).json({ error: "Database URL missing" });
   }
 
   const pool = new Pool({
-    connectionString: process.env.birds_DATABASE_URL,
+    connectionString,
     ssl: { rejectUnauthorized: false }
   });
 
