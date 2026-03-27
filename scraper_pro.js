@@ -221,17 +221,28 @@ async function main() {
   }
 
   const products = {};
-  const currentZoneIds = {}; // Track what was scraped per zone, with stock status
+  const currentZoneIds = {}; // city -> { id -> stock bool }
+  const cityZoneMap = {};    // city -> Set of all zone_ids seen
+  const cardZones = {};      // card.id -> Set of zone_ids they appear in
 
-  // 2. SCRAPE CITIES (Darkstore Check Layer)
+  // 2. SCRAPE CITIES
   for (const city of CITIES) {
     console.log(`\n[${city.name}] Starting scrape...`);
     const cards = await scrapeCity(city);
-    currentZoneIds[city.name] = {}; // Map of id -> stock (true/false)
+    currentZoneIds[city.name] = {};
+    if (!cityZoneMap[city.name]) cityZoneMap[city.name] = new Set();
 
     for (const card of cards) {
-      const inStock = card.stock !== undefined ? card.stock > 0 : true; // Use real stock field!
+      const inStock = card.stock !== undefined ? card.stock > 0 : true;
       currentZoneIds[city.name][card.id] = inStock;
+
+      // Track per-zone presence from deliveryZones field
+      const zones = card.deliveryZones || [];
+      zones.forEach(z => cityZoneMap[city.name].add(z));
+      if (!cardZones[card.id]) cardZones[card.id] = {};
+      if (!cardZones[card.id][city.name]) cardZones[card.id][city.name] = new Set();
+      zones.forEach(z => cardZones[card.id][city.name].add(z));
+
       if (!products[card.id]) {
         products[card.id] = {
           id: card.id, title: card.title, brand: card.brand || '',
@@ -306,15 +317,13 @@ async function main() {
     }
   }
 
-  // 6. DARKSTORE TRACKING (uses real stock field per card)
+  // 6. DARKSTORE city-level tracking (legacy — stock per city)
   console.log(`\n🕵️‍♂️ Running Matrix Darkstore Checks...`);
   let outOfStockCount = 0;
   for (const city of CITIES) {
-      const currentStockMap = currentZoneIds[city.name] || {}; // id -> bool
-      const currentIds = Object.keys(currentStockMap);
+      const currentStockMap = currentZoneIds[city.name] || {};
       const historicalIdsForCity = dbProducts[city.name] || new Set();
 
-      // Log stock status for all scrapped items (using real stock field)
       for (const [cardId, isAvailable] of Object.entries(currentStockMap)) {
           await client.query(`
             INSERT INTO darkstore_availability (product_id, city, is_available)
@@ -322,7 +331,6 @@ async function main() {
           `, [cardId, city.name, isAvailable]);
           if (!isAvailable) outOfStockCount++;
       }
-      // Also log items that were in DB but disappeared from search entirely
       for (const hid of historicalIdsForCity) {
           if (!currentStockMap.hasOwnProperty(hid)) {
               await client.query(`
@@ -333,7 +341,28 @@ async function main() {
           }
       }
   }
-  console.log(`   -> Found ${outOfStockCount} out-of-stock/missing SKUs across all zones.`);
+  console.log(`   -> ${outOfStockCount} out-of-stock/missing SKUs (city-level).`);
+
+  // 7. PER-ZONE TRACKING (using deliveryZones from API)
+  console.log(`\n🏭 Running Per-Warehouse (Zone) Availability Tracking...`);
+  let zoneRecords = 0;
+  for (const city of CITIES) {
+      const allZonesInCity = cityZoneMap[city.name] || new Set();
+      if (allZonesInCity.size === 0) continue;
+
+      for (const product of resultList) {
+          const productZonesInCity = (cardZones[product.id] || {})[city.name] || new Set();
+          for (const zone of allZonesInCity) {
+              const isPresent = productZonesInCity.has(zone);
+              await client.query(`
+                INSERT INTO zone_availability (product_id, city, zone_id, is_available)
+                VALUES ($1, $2, $3, $4)
+              `, [product.id, city.name, zone, isPresent]);
+              zoneRecords++;
+          }
+      }
+  }
+  console.log(`   -> Recorded ${zoneRecords} zone-level stock entries.`);
 
   console.log(`✅ Success! Updated ${resultList.length} items & ${priceRowsInserted} prices. Fired ${alertsSent} alerts.`);
   await client.end();

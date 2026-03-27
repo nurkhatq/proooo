@@ -198,15 +198,20 @@
       </table>
     </div>
 
-    <!-- DARKSTORES TABLE -->
+    <!-- DARKSTORES ZONE MATRIX -->
     <div class="table-card" style="margin-top: 2rem;">
-      <div class="chart-title" style="margin-bottom:0.25rem; color:#f14635;">⚠️ Контроль ассортимента</div>
-      <p class="chart-sub">SKU, отсутствующие в дарксторах Magnum (выявлено при последнем мониторинге)</p>
+      <div class="chart-title" style="margin-bottom:0.25rem; color:#f14635;">🏭 Контроль ассортимента по складам</div>
+      <p class="chart-sub">Наличие SKU по конкретным дарксторам Magnum (ZONE1, ZONE2, ZONE8...)</p>
       <div id="darkstoreLoading" style="color:var(--muted); font-size:0.9rem;">Загрузка данных по дарксторам...</div>
-      <table id="darkstoreTable" style="display:none;">
+
+      <!-- Zone Stats Cards -->
+      <div id="zoneStatsGrid" style="display:none; gap:0.75rem; flex-wrap:wrap; margin-bottom:1.25rem;"></div>
+
+      <!-- Missing SKUs Table -->
+      <table id="darkstoreTable" style="display:none; margin-top:1rem;">
         <thead>
           <tr>
-            <th>Зона (Город)</th>
+            <th>Склад (Зона)</th>
             <th>Товар</th>
             <th>Бренд</th>
             <th>Отсутствует с</th>
@@ -537,27 +542,47 @@ function loadData(period = 'day') {
       document.getElementById('loader').innerHTML = `<span style="color:var(--primary)">Ошибка загрузки: ${err.message}</span>`;
     });
 
-  // === DARKSTORES TABLE — completely separate, never blocks charts ===
+  // === DARKSTORES — completely separate, never blocks charts ===
   fetch('/api/darkstores')
     .then(r => r.json())
-    .then(darkstores => {
-       if (darkstores.error) throw new Error(darkstores.error);
-       const tbody = document.getElementById('darkstoreTableBody');
+    .then(data => {
+       if (data.error) throw new Error(data.error);
        document.getElementById('darkstoreLoading').style.display = 'none';
+
+       // Zone stats mini-cards
+       const statsGrid = document.getElementById('zoneStatsGrid');
+       const stats = data.zoneStats || [];
+       if (stats.length > 0) {
+         statsGrid.style.display = 'flex';
+         statsGrid.innerHTML = stats.map(s => {
+           const pct = s.total_tracked > 0 ? Math.round(s.out_of_stock / s.total_tracked * 100) : 0;
+           const color = pct > 30 ? 'var(--primary)' : pct > 10 ? 'var(--yellow)' : 'var(--green)';
+           const dt = new Date(s.last_check).toLocaleString('ru-RU', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+           return `<div class="kpi" style="--accent:${color}; min-width:160px; flex:0 0 auto;">
+             <div class="kpi-label">${s.zone_id}</div>
+             <div class="kpi-value" style="font-size:1.4rem; color:${color}">${s.out_of_stock}/${s.total_tracked}</div>
+             <div class="kpi-sub">${s.city} · ${dt}</div>
+           </div>`;
+         }).join('');
+       }
+
+       // Missing SKUs table
+       const missingMap = data.missing || {};
+       const tbody = document.getElementById('darkstoreTableBody');
        document.getElementById('darkstoreTable').style.display = 'table';
        let rows = '';
-       Object.keys(darkstores).forEach(zone => {
-          darkstores[zone].forEach(item => {
+       Object.keys(missingMap).forEach(zone => {
+          missingMap[zone].forEach(item => {
              const dt = new Date(item.since).toLocaleString('ru-RU');
              rows += `<tr>
-               <td style="font-weight:700; color:var(--text);">${zone}</td>
+               <td style="font-weight:700; color:var(--blue);">${zone}</td>
                <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</td>
                <td><span class="badge badge-yellow">${item.brand || '—'}</span></td>
                <td style="color:var(--primary)">${dt}</td>
              </tr>`;
           });
        });
-       if (rows === '') rows = '<tr><td colspan="4" style="text-align:center;color:var(--green)">✅ Все товары в наличии</td></tr>';
+       if (rows === '') rows = '<tr><td colspan="4" style="text-align:center;color:var(--green)">✅ Все товары в наличии во всех складах</td></tr>';
        tbody.innerHTML = rows;
     })
     .catch(err => {

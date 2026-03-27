@@ -75,6 +75,20 @@ async function setupDatabase() {
     `);
     console.log("✅ Table 'price_alerts' is ready.");
 
+    // Table 3: Per-Zone Availability (per Magnum warehouse/darkstore)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS zone_availability (
+        id SERIAL PRIMARY KEY,
+        product_id VARCHAR(50) REFERENCES products(id) ON DELETE CASCADE,
+        city VARCHAR(100) NOT NULL,
+        zone_id VARCHAR(80) NOT NULL,
+        is_available BOOLEAN NOT NULL,
+        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_zone_avail ON zone_availability (product_id, city, zone_id);`);
+    console.log("✅ Table 'zone_availability' is ready.");
+
     console.log("\n🎉 PRO Database setup complete.");
 
   } catch (err) {
