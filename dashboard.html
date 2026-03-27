@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Аналитика — Kaspi Poultry Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #263248;
+      --primary: #f14635;
+      --green: #10b981;
+      --yellow: #fbbf24;
+      --blue: #38bdf8;
+      --purple: #a78bfa;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* NAV */
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem; background: var(--surface);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+    }
+    .nav-logo { font-weight: 800; font-size: 1.2rem; color: var(--primary); text-decoration: none; }
+    .nav-links { display: flex; gap: 0.5rem; }
+    .nav-links a {
+      padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none;
+      color: var(--muted); font-weight: 600; font-size: 0.9rem; transition: all 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); background: var(--surface2); }
+    .nav-links a.active { color: var(--primary); background: rgba(241,70,53,0.1); }
+
+    /* MAIN */
+    main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+    h2 { font-size: 1.8rem; font-weight: 800; margin-bottom: 0.25rem; }
+    .subtitle { color: var(--muted); margin-bottom: 2rem; }
+
+    /* KPI CARDS */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .kpi {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.25rem 1.5rem; position: relative; overflow: hidden;
+    }
+    .kpi::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--accent, var(--primary));
+    }
+    .kpi-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 0.5rem; }
+    .kpi-value { font-size: 2rem; font-weight: 800; color: var(--text); }
+    .kpi-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+
+    /* CHARTS */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+    @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .chart-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .chart-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 1.25rem; }
+    .chart-wrap { position: relative; height: 260px; }
+
+    /* PRICE TREND */
+    .trend-section { margin-bottom: 2rem; }
+    .trend-controls { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; align-items: center; }
+    select {
+      background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.9rem; cursor: pointer;
+    }
+    select:focus { outline: none; border-color: var(--primary); }
+
+    /* TABLE */
+    .table-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.5rem; margin-bottom: 2rem; overflow-x: auto;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 0.6rem 1rem; color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+    .badge-green { background: rgba(16,185,129,0.15); color: var(--green); }
+    .badge-red { background: rgba(241,70,53,0.15); color: var(--primary); }
+    .badge-yellow { background: rgba(251,191,36,0.15); color: var(--yellow); }
+
+    /* LOADING */
+    .loading { display: flex; align-items: center; justify-content: center; height: 300px; color: var(--muted); font-size: 1.1rem; gap: 0.75rem; }
+    .spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">🐔 Kaspi Birds PRO</a>
+  <div class="nav-links">
+    <a href="index.html">Каталог</a>
+    <a href="dashboard.html" class="active">Аналитика</a>
+    <a href="/api/export" target="_blank" style="background:var(--green); color:#fff;">↓ CSV Выгрузка</a>
+  </div>
+</nav>
+
+<main>
+  <h2>Аналитика цен</h2>
+  <p class="subtitle">Агрегированные данные по всем городам Казахстана</p>
+
+  <div id="loader" class="loading"><div class="spinner"></div> Загрузка данных...</div>
+  <div id="content" style="display:none">
+
+    <!-- KPI -->
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <!-- CHARTS ROW 1 -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Бренды</div>
+        <div class="chart-sub">Количество SKU по брендам</div>
+        <div class="chart-wrap"><canvas id="chartBrands"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Топ-20 городов</div>
+        <div class="chart-sub">Количество доступных товаров</div>
+        <div class="chart-wrap"><canvas id="chartCities"></canvas></div>
+      </div>
+    </div>
+
+    <!-- PRICE TREND -->
+    <div class="trend-section">
+      <div class="chart-card">
+        <div class="chart-title">Динамика цен</div>
+        <div class="trend-controls">
+          <select id="trendPeriod">
+            <option value="day">По дням</option>
+            <option value="week">По неделям</option>
+            <option value="month">По месяцам</option>
+          </select>
+          <select id="trendProduct" style="flex:1; min-width:220px;"></select>
+          <select id="trendCity"></select>
+        </div>
+        <div class="chart-wrap" style="height: 300px;"><canvas id="chartTrend"></canvas></div>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW 2 -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Распределение цен</div>
+        <div class="chart-sub">Сколько товаров в каком ценовом диапазоне</div>
+        <div class="chart-wrap"><canvas id="chartPriceDist"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Охват городов</div>
+        <div class="chart-sub">Доступность товаров (доля от всех городов)</div>
+        <div class="chart-wrap"><canvas id="chartCoverage"></canvas></div>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW 3 (SALES) -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Лидеры продаж</div>
+        <div class="chart-sub">Топ-10 товаров по количеству покупок</div>
+        <div class="chart-wrap"><canvas id="chartTopSales"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Продажи по брендам</div>
+        <div class="chart-sub">Суммарный объем продаж (шт.)</div>
+        <div class="chart-wrap"><canvas id="chartBrandSales"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TOP PRODUCTS TABLE -->
+    <div class="table-card">
+      <div class="chart-title" style="margin-bottom:0.25rem">Топ-15: самые дешёвые товары</div>
+      <p class="chart-sub">По минимальной цене среди всех городов</p>
+      <table id="topTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Товар</th>
+            <th>Бренд</th>
+            <th>Мин. цена</th>
+            <th>Макс. цена</th>
+            <th>Разброс</th>
+            <th>Городов</th>
+          </tr>
+        </thead>
+        <tbody id="topTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- DARKSTORES TABLE -->
+    <div class="table-card" style="margin-top: 2rem;">
+      <div class="chart-title" style="margin-bottom:0.25rem; color:#f14635;">⚠️ Контроль ассортимента</div>
+      <p class="chart-sub">SKU, отсутствующие в дарксторах Magnum (выявлено при последнем мониторинге)</p>
+      <div id="darkstoreLoading" style="color:var(--muted); font-size:0.9rem;">Загрузка данных по дарксторам...</div>
+      <table id="darkstoreTable" style="display:none;">
+        <thead>
+          <tr>
+            <th>Зона (Город)</th>
+            <th>Товар</th>
+            <th>Бренд</th>
+            <th>Отсутствует с</th>
+          </tr>
+        </thead>
+        <tbody id="darkstoreTableBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</main>
+
+<script>
+const CHART_COLORS = ['#f14635','#38bdf8','#10b981','#fbbf24','#a78bfa','#fb923c','#34d399','#f472b6','#60a5fa','#facc15'];
+let allProducts = [];
+let trendChart = null;
+
+function fmt(n) { return n ? n.toLocaleString('ru-RU') + ' ₸' : '—'; }
+
+function buildKPIs(products) {
+  const allPrices = [];
+  const citiesSet = new Set();
+  const brandsSet = new Set();
+
+  products.forEach(p => {
+    Object.entries(p.prices).forEach(([city, price]) => {
+      allPrices.push(price);
+      citiesSet.add(city);
+    });
+    if (p.brand) brandsSet.add(p.brand);
+  });
+
+  allPrices.sort((a,b) => a - b);
+  const avg = allPrices.length ? Math.round(allPrices.reduce((s,v) => s+v, 0) / allPrices.length) : 0;
+  const median = allPrices.length ? allPrices[Math.floor(allPrices.length/2)] : 0;
+
+  const totalSales = products.reduce((sum, p) => sum + (p.salesCount || 0), 0);
+  const kpis = [
+    { label: 'Уникальных товаров', value: products.length, sub: 'в базе', accent: '#f14635' },
+    { label: 'Объем продаж', value: totalSales.toLocaleString('ru-RU'), sub: 'покупок по всему РК', accent: '#10b981' },
+    { label: 'Брендов', value: brandsSet.size, sub: 'производителей', accent: '#a78bfa' },
+    { label: 'Городов с данными', value: citiesSet.size, sub: 'из 184 регионов', accent: '#38bdf8' },
+    { label: 'Средняя цена', value: fmt(avg), sub: `медиана ${fmt(median)}`, accent: '#f472b6' },
+    { label: 'Мин. цена', value: fmt(allPrices[0] || 0), sub: 'по всем городам', accent: '#fbbf24' },
+  ];
+
+  document.getElementById('kpi-grid').innerHTML = kpis.map(k => `
+    <div class="kpi" style="--accent: ${k.accent}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>
+  `).join('');
+}
+
+function buildBrandsChart(products) {
+  const counts = {};
+  products.forEach(p => { const b = p.brand || 'Без бренда'; counts[b] = (counts[b] || 0) + 1; });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 10);
+  new Chart(document.getElementById('chartBrands'), {
+    type: 'doughnut',
+    data: {
+      labels: sorted.map(e => e[0]),
+      datasets: [{ data: sorted.map(e => e[1]), backgroundColor: CHART_COLORS, borderWidth: 2, borderColor: '#1e293b' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12 } } }
+    }
+  });
+}
+
+function buildCitiesChart(products) {
+  const counts = {};
+  products.forEach(p => Object.keys(p.prices).forEach(c => counts[c] = (counts[c]||0)+1));
+  const top20 = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 20);
+  new Chart(document.getElementById('chartCities'), {
+    type: 'bar',
+    data: {
+      labels: top20.map(e => e[0]),
+      datasets: [{ data: top20.map(e => e[1]), backgroundColor: 'rgba(56,189,248,0.7)', borderRadius: 4, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function buildPriceDistChart(products) {
+  const buckets = [0, 500, 1000, 1500, 2000, 3000, 5000, 10000, Infinity];
+  const labels = ['<500', '500-1k', '1k-1.5k', '1.5k-2k', '2k-3k', '3k-5k', '5k-10k', '>10k'];
+  const counts = new Array(labels.length).fill(0);
+  products.forEach(p => {
+    const prices = Object.values(p.prices);
+    const min = Math.min(...prices);
+    for (let i = 0; i < buckets.length - 1; i++) {
+      if (min >= buckets[i] && min < buckets[i+1]) { counts[i]++; break; }
+    }
+  });
+  new Chart(document.getElementById('chartPriceDist'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: counts, backgroundColor: 'rgba(167,139,250,0.7)', borderRadius: 4, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      }
+    }
+  });
+}
+
+function buildCoverageChart(products) {
+  const buckets = [
+    { label: '1 город', min: 1, max: 1 },
+    { label: '2-5', min: 2, max: 5 },
+    { label: '6-20', min: 6, max: 20 },
+    { label: '21-50', min: 21, max: 50 },
+    { label: '51-100', min: 51, max: 100 },
+    { label: '100+', min: 101, max: Infinity },
+  ];
+  const counts = buckets.map(() => 0);
+  products.forEach(p => {
+    const n = Object.keys(p.prices).length;
+    for (let i = 0; i < buckets.length; i++) {
+      if (n >= buckets[i].min && n <= buckets[i].max) { counts[i]++; break; }
+    }
+  });
+  new Chart(document.getElementById('chartCoverage'), {
+    type: 'bar',
+    data: {
+      labels: buckets.map(b => b.label),
+      datasets: [{ data: counts, backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      }
+    }
+  });
+}
+
+function buildTrendSelector(products) {
+  const sel = document.getElementById('trendProduct');
+  // Sort by most history entries
+  const withHistory = products.filter(p => {
+    const h = p.history || {};
+    return Object.values(h).some(arr => arr.length > 1);
+  });
+  const sorted = withHistory.length > 0 ? withHistory : products.slice(0, 20);
+  sel.innerHTML = sorted.map(p => `<option value="${p.id}">${p.title.slice(0,55)}</option>`).join('');
+  sel.addEventListener('change', () => updateTrend(products));
+  document.getElementById('trendCity').addEventListener('change', () => updateTrend(products));
+  document.getElementById('trendPeriod').addEventListener('change', (e) => loadData(e.target.value));
+  updateTrend(products, true);
+}
+
+function updateTrend(products, init = false) {
+  const id = document.getElementById('trendProduct').value;
+  const product = products.find(p => p.id === id);
+  if (!product) return;
+
+  const citySel = document.getElementById('trendCity');
+  const history = product.history || {};
+  const cities = Object.keys(history).filter(c => history[c].length > 0);
+
+  if (init || citySel.dataset.lastProduct !== id) {
+    citySel.innerHTML = cities.map(c => `<option value="${c}">${c}</option>`).join('');
+    citySel.dataset.lastProduct = id;
+  }
+
+  const city = citySel.value || cities[0];
+  if (!city) return;
+
+  const entries = (history[city] || []).slice().reverse();
+  const labels = entries.map(e => e.date);
+  const data = entries.map(e => e.price);
+
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById('chartTrend'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: city,
+        data,
+        borderColor: '#f14635',
+        backgroundColor: 'rgba(241,70,53,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 5,
+        pointBackgroundColor: '#f14635',
+        pointBorderColor: '#1e293b',
+        pointBorderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => fmt(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } },
+        y: { ticks: { color: '#94a3b8', callback: v => v.toLocaleString('ru-RU') + ' ₸' }, grid: { color: '#334155' } }
+      }
+    }
+  });
+}
+
+function buildTable(products) {
+  const rows = products.map(p => {
+    const prices = Object.values(p.prices);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const spread = max - min;
+    const spreadPct = min > 0 ? Math.round(spread / min * 100) : 0;
+    return { p, min, max, spread, spreadPct, cities: prices.length };
+  }).sort((a,b) => a.min - b.min).slice(0, 15);
+
+  document.getElementById('topTableBody').innerHTML = rows.map((r, i) => `
+    <tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td style="max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${r.p.title}">${r.p.title}</td>
+      <td><span class="badge badge-yellow">${r.p.brand || '—'}</span></td>
+      <td style="color:var(--green); font-weight:700">${fmt(r.min)}</td>
+      <td style="color:var(--muted)">${fmt(r.max)}</td>
+      <td>${r.spreadPct > 0 ? `<span class="badge ${r.spreadPct > 20 ? 'badge-red' : 'badge-green'}">+${r.spreadPct}%</span>` : '<span class="badge">—</span>'}</td>
+      <td style="color:var(--blue)">${r.cities}</td>
+    </tr>
+  `).join('');
+}
+
+function buildSalesCharts(products) {
+  const sorted = [...products].filter(p => p.salesCount > 0).sort((a,b) => b.salesCount - a.salesCount).slice(0, 10);
+  new Chart(document.getElementById('chartTopSales'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(p => p.title.length > 25 ? p.title.substring(0,25)+'...' : p.title),
+      datasets: [{ data: sorted.map(p => p.salesCount), backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  const brandSales = {};
+  products.forEach(p => {
+    if (p.salesCount > 0) {
+      const b = p.brand || 'Без бренда';
+      brandSales[b] = (brandSales[b] || 0) + p.salesCount;
+    }
+  });
+  const topBrands = Object.entries(brandSales).sort((a,b) => b[1]-a[1]).slice(0, 10);
+  new Chart(document.getElementById('chartBrandSales'), {
+    type: 'bar',
+    data: {
+      labels: topBrands.map(e => e[0]),
+      datasets: [{ data: topBrands.map(e => e[1]), backgroundColor: 'rgba(241,70,53,0.7)', borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      }
+    }
+  });
+}
+
+function loadData(period = 'day') {
+  document.getElementById('loader').style.display = 'flex';
+  document.getElementById('content').style.display = 'none';
+
+  fetch(`/api/trends?period=${period}`)
+    .then(r => r.json())
+    .then(data => {
+      allProducts = data;
+      document.getElementById('loader').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+
+      if (trendChart) { trendChart.destroy(); trendChart = null; }
+
+      buildKPIs(data);
+      buildBrandsChart(data);
+      buildCitiesChart(data);
+      buildPriceDistChart(data);
+      buildCoverageChart(data);
+      buildTrendSelector(data);
+      buildTable(data);
+      buildSalesCharts(data);
+      
+      return fetch('/api/darkstores');
+    })
+    .then(r => r.json())
+    .then(darkstores => {
+       const tbody = document.getElementById('darkstoreTableBody');
+       document.getElementById('darkstoreLoading').style.display = 'none';
+       document.getElementById('darkstoreTable').style.display = 'table';
+       
+       let rows = '';
+       Object.keys(darkstores).forEach(zone => {
+          darkstores[zone].forEach(item => {
+             const dt = new Date(item.since).toLocaleString('ru-RU');
+             rows += `
+               <tr>
+                 <td style="font-weight:700; color:var(--text);">${zone}</td>
+                 <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</td>
+                 <td><span class="badge badge-yellow">${item.brand || '—'}</span></td>
+                 <td style="color:var(--primary)">${dt}</td>
+               </tr>
+             `;
+          });
+       });
+       if(rows === '') rows = '<tr><td colspan="4" style="text-align:center;color:var(--green)">✅ Все товары в наличии</td></tr>';
+       tbody.innerHTML = rows;
+    })
+    .catch(err => {
+      document.getElementById('loader').innerHTML = `<span style="color:var(--primary)">Ошибка: ${err.message}</span>`;
+    });
+}
+
+loadData('day');
+</script>
+</body>
+</html>

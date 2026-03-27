@@ -1,0 +1,12 @@
+{
+  "name": "kaspi-birds-pro",
+  "version": "1.0.0",
+  "main": "scraper_pro.js",
+  "scripts": {
+    "start": "node scraper_pro.js",
+    "db": "node setup_pro_db.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.3"
+  }
+}

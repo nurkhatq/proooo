@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaspi Poultry Tracker — Каталог</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #263248;
+      --primary: #f87171;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --kaspi-red: #f14635;
+      --border: #334155;
+      --green: #10b981;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
+
+    /* NAV */
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem; background: var(--surface);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
+    }
+    .nav-logo { font-weight: 800; font-size: 1.2rem; color: var(--kaspi-red); text-decoration: none; }
+    .nav-links { display: flex; gap: 0.5rem; }
+    .nav-links a {
+      padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none;
+      color: var(--text-muted); font-weight: 600; font-size: 0.9rem; transition: all 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); background: var(--surface2); }
+    .nav-links a.active { color: var(--kaspi-red); background: rgba(241,70,53,0.1); }
+    
+    body { background-color: var(--bg); color: var(--text); padding: 0; min-height: 100vh; }
+    .page-body { padding: 2rem; }
+    
+    header {
+      margin-bottom: 2rem;
+      text-align: center;
+      padding: 2rem;
+      background: linear-gradient(135deg, rgba(241,70,53,0.1), rgba(0,0,0,0));
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+    }
+    
+    header h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--kaspi-red);
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 20px rgba(241,70,53,0.3);
+    }
+    
+    header p { color: var(--text-muted); font-size: 1.1rem; }
+    
+    .loading { text-align: center; font-size: 1.2rem; color: var(--text-muted); padding: 4rem; }
+    
+    .controls { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2rem; }
+    .controls-row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+    .search-input { flex: 1; min-width: 220px; padding: 0.75rem 1.1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 1rem; }
+    .search-input:focus { outline: none; border-color: var(--kaspi-red); box-shadow: 0 0 0 2px rgba(241,70,53,0.2); }
+    .filter-select { padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 0.9rem; cursor: pointer; min-width: 140px; }
+    .filter-select:focus { outline: none; border-color: var(--kaspi-red); }
+    .btn-reset { padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.9rem; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .btn-reset:hover { background: var(--surface); color: var(--text); }
+    .price-range-wrap { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.85rem; }
+    .price-range-wrap input[type=range] { accent-color: var(--kaspi-red); width: 120px; }
+    .product-id { font-family: monospace; font-size: 0.75rem; color: var(--text-muted); background: var(--bg); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 0.5rem; border: 1px solid var(--border); }
+    .alert { background: rgba(241, 70, 53, 0.1); border-left: 4px solid var(--kaspi-red); padding: 1rem; border-radius: 4px; margin-bottom: 2rem; display: none; }
+    
+    .analytics-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+    .stat-box { background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .stat-title { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; font-weight: 600; letter-spacing: 0.05em; }
+    .stat-value { font-size: 2rem; color: var(--text); font-weight: 800; margin-bottom: 1rem; }
+    .stat-list { font-size: 0.85rem; color: var(--text-muted); max-height: 120px; overflow-y: auto; padding-right: 0.5rem; }
+    .stat-list::-webkit-scrollbar { width: 4px; }
+    .stat-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .stat-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .stat-item:last-child { border-bottom: none; }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1.5rem;
+    }
+    
+    .card {
+      background: var(--surface);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.3), 0 0 0 1px var(--kaspi-red);
+    }
+    
+    .card-img-wrap {
+      width: 100%;
+      height: 200px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      position: relative;
+    }
+    
+    .card-img-wrap img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    
+    .metrics {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .metrics.rating { color: #fbbf24; }
+    
+    .card-content { padding: 1.5rem; }
+    
+    .title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 3em;
+    }
+    
+    .brand {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+    
+    .sales-badge {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--green);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+    
+    .price-table-title {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .price-list {
+      max-height: 140px;
+      overflow-y: auto;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+    }
+    
+    .price-list::-webkit-scrollbar { width: 4px; }
+    .price-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    
+    .price-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    
+    .price-row:last-child { border-bottom: none; }
+    
+    .city-name { color: var(--text-muted); }
+    .price-val { font-weight: 600; color: #10b981; }
+    
+    .min-price-highlight {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px dashed var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .min-label { font-size: 0.85rem; color: var(--text-muted); }
+    .min-value { font-size: 1.25rem; font-weight: 700; color: var(--kaspi-red); }
+    
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">🐔 Kaspi Birds</a>
+  <div class="nav-links">
+    <a href="index.html" class="active">Каталог</a>
+    <a href="dashboard.html">Аналитика</a>
+  </div>
+</nav>
+
+<div class="page-body">
+  <header>
+    <h1>Kaspi Poultry Tracker</h1>
+    <p>Мониторинг региональных цен по Казахстану</p>
+  </header>
+
+  <div id="error-alert" class="alert">
+    <strong>Ошибка:</strong> <span id="error-msg">Не удалось загрузить данные.</span>
+  </div>
+
+  <div class="controls">
+    <div class="controls-row">
+      <input type="text" id="search" class="search-input" placeholder="Поиск по названию, бренду или ID...">
+      <select id="filterBrand" class="filter-select"><option value="">Все бренды</option></select>
+      <select id="filterCity" class="filter-select"><option value="">Все города</option></select>
+      <select id="filterSort" class="filter-select">
+        <option value="cities-desc">Больше городов</option>
+        <option value="price-asc">Цена ↑</option>
+        <option value="price-desc">Цена ↓</option>
+        <option value="rating-desc">Рейтинг ↓</option>
+        <option value="name-asc">Название А-Я</option>
+      </select>
+      <button class="btn-reset" id="btnReset">✕ Сбросить</button>
+    </div>
+    <div class="controls-row">
+      <div class="price-range-wrap">
+        <span>Цена до:</span>
+        <input type="range" id="priceRange" min="0" max="20000" step="100" value="20000">
+        <span id="priceRangeVal" style="color:var(--text); font-weight:600; min-width:80px">20 000 ₸</span>
+      </div>
+      <div id="stats" style="color: var(--text-muted); margin-left: auto;"></div>
+    </div>
+  </div>
+
+  <div id="analytics" class="analytics-panel" style="display: none;">
+    <div class="stat-box">
+      <div class="stat-title">Top Available Cities</div>
+      <div class="stat-value" id="stat-top-cities">-</div>
+      <div class="stat-list" id="list-top-cities"></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-title">Empty Regions (0 items)</div>
+      <div class="stat-value" id="stat-zero-cities">-</div>
+      <div class="stat-list" id="list-zero-cities"></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-title">Top Brands</div>
+      <div class="stat-value" id="stat-brands">-</div>
+      <div class="stat-list" id="list-brands"></div>
+    </div>
+  </div>
+
+  <div id="loader" class="loading">Загрузка данных из базы...</div>
+
+  <div id="grid" class="grid"></div>
+
+</div><!-- /page-body -->
+
+  <script>
+    const grid = document.getElementById('grid');
+    const loader = document.getElementById('loader');
+    const searchInput = document.getElementById('search');
+    const stats = document.getElementById('stats');
+    const errorAlert = document.getElementById('error-alert');
+    const errorMsg = document.getElementById('error-msg');
+    const filterBrand = document.getElementById('filterBrand');
+    const filterCity = document.getElementById('filterCity');
+    const filterSort = document.getElementById('filterSort');
+    const priceRange = document.getElementById('priceRange');
+    const priceRangeVal = document.getElementById('priceRangeVal');
+    let allProducts = [];
+
+    function applyFilters() {
+      const q = searchInput.value.toLowerCase();
+      const brand = filterBrand.value;
+      const city = filterCity.value;
+      const maxPrice = parseInt(priceRange.value);
+      const sort = filterSort.value;
+
+      let result = allProducts.filter(p => {
+        if (q && !p.title.toLowerCase().includes(q) && !(p.brand||'').toLowerCase().includes(q) && !p.id.includes(q)) return false;
+        if (brand && p.brand !== brand) return false;
+        if (city && !p.prices[city]) return false;
+        const minP = Math.min(...Object.values(p.prices));
+        if (minP > maxPrice) return false;
+        return true;
+      });
+
+      result.sort((a, b) => {
+        if (sort === 'price-asc') return Math.min(...Object.values(a.prices)) - Math.min(...Object.values(b.prices));
+        if (sort === 'price-desc') return Math.min(...Object.values(b.prices)) - Math.min(...Object.values(a.prices));
+        if (sort === 'rating-desc') return (b.rating||0) - (a.rating||0);
+        if (sort === 'name-asc') return a.title.localeCompare(b.title, 'ru');
+        return Object.keys(b.prices).length - Object.keys(a.prices).length; // cities-desc default
+      });
+
+      renderCards(result);
+    }
+
+    function populateFilters(products) {
+      const brands = [...new Set(products.map(p => p.brand).filter(Boolean))].sort();
+      filterBrand.innerHTML = '<option value="">Все бренды</option>' + brands.map(b => `<option value="${b}">${b}</option>`).join('');
+
+      const cities = [...new Set(products.flatMap(p => Object.keys(p.prices)))].sort();
+      filterCity.innerHTML = '<option value="">Все города</option>' + cities.map(c => `<option value="${c}">${c}</option>`).join('');
+
+      const maxP = Math.max(...products.flatMap(p => Object.values(p.prices)));
+      priceRange.max = Math.ceil(maxP / 1000) * 1000;
+      priceRange.value = priceRange.max;
+      priceRangeVal.textContent = parseInt(priceRange.max).toLocaleString('ru-RU') + ' ₸';
+    }
+
+    [searchInput, filterBrand, filterCity, filterSort].forEach(el => el.addEventListener('input', applyFilters));
+    priceRange.addEventListener('input', () => {
+      priceRangeVal.textContent = parseInt(priceRange.value).toLocaleString('ru-RU') + ' ₸';
+      applyFilters();
+    });
+    document.getElementById('btnReset').addEventListener('click', () => {
+      searchInput.value = ''; filterBrand.value = ''; filterCity.value = ''; filterSort.value = 'cities-desc';
+      priceRange.value = priceRange.max; priceRangeVal.textContent = parseInt(priceRange.max).toLocaleString('ru-RU') + ' ₸';
+      applyFilters();
+    });
+
+    function formatPrice(num) {
+      if (!num) return '-';
+      return num.toLocaleString('ru-RU') + ' ₸';
+    }
+
+    function renderCards(products) {
+      grid.innerHTML = '';
+      stats.textContent = `Showing ${products.length} products`;
+      
+      if (products.length === 0) {
+         grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; color: var(--text-muted); padding: 2rem;">No products found matching your search.</div>';
+         return;
+      }
+
+      products.forEach(product => {
+        const cities = Object.keys(product.prices);
+        
+        let minPrice = Infinity;
+        let maxPrice = 0;
+        
+        cities.forEach(city => {
+          const p = product.prices[city];
+          if (p < minPrice) minPrice = p;
+          if (p > maxPrice) maxPrice = p;
+        });
+
+        const rowsHTML = cities.sort().map(city => {
+          const hist = product.history[city] || [];
+          let historyHtml = '';
+          if (hist.length > 1) {
+            // Check if price dropped or increased compared to the oldest recorded price
+            const oldestPrice = hist[hist.length - 1].price;
+            const newestPrice = hist[0].price;
+            if (newestPrice < oldestPrice) {
+               historyHtml = `<span style="color:#10b981; font-size:0.75rem; margin-left: 8px;">▼ dropped from ${formatPrice(oldestPrice)}</span>`;
+            } else if (newestPrice > oldestPrice) {
+               historyHtml = `<span style="color:var(--kaspi-red); font-size:0.75rem; margin-left: 8px;">▲ rose from ${formatPrice(oldestPrice)}</span>`;
+            }
+          }
+
+          return `
+          <div class="price-row" style="flex-wrap: wrap;">
+            <div>
+               <span class="city-name">${city}</span>
+               <span class="price-val" style="margin-left: 8px;">${formatPrice(product.prices[city])}</span>
+            </div>
+            ${historyHtml}
+          </div>
+          `;
+        }).join('');
+
+        const isUnique = minPrice === maxPrice;
+        const minHighlightHtml = isUnique 
+          ? `<div class="min-label">Global Price</div><div class="min-value">${formatPrice(minPrice)}</div>`
+          : `<div class="min-label">Starting from</div><div class="min-value">${formatPrice(minPrice)}</div>`;
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-img-wrap">
+            <img src="${product.image || 'https://via.placeholder.com/200?text=No+Image'}" alt="${product.title}" loading="lazy">
+            ${product.rating ? `<div class="metrics rating">⭐ ${product.rating}</div>` : ''}
+          </div>
+          <div class="card-content">
+            <div class="product-id">ID: ${product.id}</div>
+            <div class="title" title="${product.title}">${product.title}</div>
+            ${product.brand ? `<div class="brand">${product.brand}</div>` : ''}
+            
+            <div class="sales-badge">🛒 Продажи: ${product.salesCount !== null && product.salesCount !== undefined ? product.salesCount.toLocaleString('ru-RU') + ' шт.' : 'Засекречено Kaspi'}</div>
+            
+            <div class="price-table-title">Regional Prices (${cities.length} cities)</div>
+            <div class="price-list">
+              ${rowsHTML}
+            </div>
+            
+            <div class="min-price-highlight">
+              ${minHighlightHtml}
+            </div>
+          </div>
+        `;
+        
+        grid.appendChild(card);
+      });
+    }
+
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      const filtered = allProducts.filter(p => 
+        p.title.toLowerCase().includes(query) || 
+        (p.brand && p.brand.toLowerCase().includes(query)) ||
+        p.id.toLowerCase().includes(query)
+      );
+      renderCards(filtered);
+    });
+
+    function generateAnalytics(products, allCities) {
+      document.getElementById('analytics').style.display = 'grid';
+      
+      const cityCounts = {};
+      const brandCounts = {};
+      
+      // Initialize city counts with 0 for all 184 cities
+      if (allCities) {
+        allCities.forEach(c => cityCounts[c.name] = 0);
+      }
+      
+      products.forEach(p => {
+        Object.keys(p.prices).forEach(c => {
+          cityCounts[c] = (cityCounts[c] || 0) + 1;
+        });
+        
+        const b = p.brand || 'No Brand';
+        brandCounts[b] = (brandCounts[b] || 0) + 1;
+      });
+      
+      const sortedCities = Object.entries(cityCounts).sort((a,b) => b[1] - a[1]);
+      const missingCities = sortedCities.filter(x => x[1] === 0);
+      const topCities = sortedCities.filter(x => x[1] > 0);
+      
+      const sortedBrands = Object.entries(brandCounts).sort((a,b) => b[1] - a[1]);
+      
+      // Render counts
+      document.getElementById('stat-top-cities').textContent = topCities.length;
+      document.getElementById('stat-zero-cities').textContent = missingCities.length;
+      document.getElementById('stat-brands').textContent = sortedBrands.length;
+      
+      // Render lists
+      document.getElementById('list-top-cities').innerHTML = topCities.map(c => `<div class="stat-item"><span>${c[0]}</span><span style="color:#10b981">${c[1]}</span></div>`).join('');
+      document.getElementById('list-zero-cities').innerHTML = missingCities.map(c => `<div class="stat-item"><span style="color:var(--text-muted)">${c[0]}</span> <span style="color:var(--kaspi-red)">0</span></div>`).join('');
+      document.getElementById('list-brands').innerHTML = sortedBrands.map(b => `<div class="stat-item"><span>${b[0]}</span><span style="color:#fbbf24">${b[1]}</span></div>`).join('');
+    }
+
+    Promise.all([
+      fetch('/api/trends').then(r => { if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+      fetch('cities.json').then(r => r.ok ? r.json() : []).catch(() => []) 
+    ])
+      .then(([productsData, citiesData]) => {
+        loader.style.display = 'none';
+        
+        // Sort by amount of cities available
+        allProducts = productsData;
+        generateAnalytics(productsData, citiesData);
+        populateFilters(productsData);
+        applyFilters();
+      })
+      .catch(err => {
+        loader.style.display = 'none';
+        errorAlert.style.display = 'block';
+        if (err.message.includes('404')) {
+          errorMsg.textContent = 'API не найден. Запустите через Vercel CLI (npx vercel dev).';
+        } else {
+          errorMsg.textContent = 'Ошибка подключения к БД: ' + err.message;
+        }
+      });
+  </script>
+</body>
+</html>
