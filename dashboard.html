@@ -511,16 +511,16 @@ function buildSalesCharts(products) {
 function loadData(period = 'day') {
   document.getElementById('loader').style.display = 'flex';
   document.getElementById('content').style.display = 'none';
-  destroyAllCharts(); // ← Destroy all charts before reloading
+  destroyAllCharts();
 
+  // === MAIN CHARTS — independent error boundary ===
   fetch(`/api/trends?period=${period}`)
-    .then(r => r.json())
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then(data => {
+      if (!Array.isArray(data)) throw new Error('Неверный формат данных: ' + JSON.stringify(data).slice(0, 100));
       allProducts = data;
       document.getElementById('loader').style.display = 'none';
       document.getElementById('content').style.display = 'block';
-
-      if (trendChart) { trendChart.destroy(); trendChart = null; }
 
       buildKPIs(data);
       buildBrandsChart(data);
@@ -530,34 +530,38 @@ function loadData(period = 'day') {
       buildTrendSelector(data);
       buildTable(data);
       buildSalesCharts(data);
-      
-      return fetch('/api/darkstores');
     })
+    .catch(err => {
+      document.getElementById('loader').style.display = 'flex';
+      document.getElementById('content').style.display = 'none';
+      document.getElementById('loader').innerHTML = `<span style="color:var(--primary)">Ошибка загрузки: ${err.message}</span>`;
+    });
+
+  // === DARKSTORES TABLE — completely separate, never blocks charts ===
+  fetch('/api/darkstores')
     .then(r => r.json())
     .then(darkstores => {
+       if (darkstores.error) throw new Error(darkstores.error);
        const tbody = document.getElementById('darkstoreTableBody');
        document.getElementById('darkstoreLoading').style.display = 'none';
        document.getElementById('darkstoreTable').style.display = 'table';
-       
        let rows = '';
        Object.keys(darkstores).forEach(zone => {
           darkstores[zone].forEach(item => {
              const dt = new Date(item.since).toLocaleString('ru-RU');
-             rows += `
-               <tr>
-                 <td style="font-weight:700; color:var(--text);">${zone}</td>
-                 <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</td>
-                 <td><span class="badge badge-yellow">${item.brand || '—'}</span></td>
-                 <td style="color:var(--primary)">${dt}</td>
-               </tr>
-             `;
+             rows += `<tr>
+               <td style="font-weight:700; color:var(--text);">${zone}</td>
+               <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.title}</td>
+               <td><span class="badge badge-yellow">${item.brand || '—'}</span></td>
+               <td style="color:var(--primary)">${dt}</td>
+             </tr>`;
           });
        });
-       if(rows === '') rows = '<tr><td colspan="4" style="text-align:center;color:var(--green)">✅ Все товары в наличии</td></tr>';
+       if (rows === '') rows = '<tr><td colspan="4" style="text-align:center;color:var(--green)">✅ Все товары в наличии</td></tr>';
        tbody.innerHTML = rows;
     })
     .catch(err => {
-      document.getElementById('loader').innerHTML = `<span style="color:var(--primary)">Ошибка: ${err.message}</span>`;
+       document.getElementById('darkstoreLoading').textContent = `⚠️ Дарксторы: ${err.message}`;
     });
 }
 
